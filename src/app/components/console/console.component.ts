@@ -123,7 +123,7 @@ export class ConsoleComponent implements OnInit {
 
     // lights
     this.drawLightRowCol(407, 296, this.pdp.PC, 16, true);
-    this.drawLightRowCol(407, 454, this.pdp.PC, 16, true);
+    this.drawLightRowCol(407, 454, this.pdp.MA, 16, true);
     this.drawLightRowCol(249, 612, this.pdp.MB, 18, true);
     this.drawLightRowCol(249, 770, this.pdp.AC, 18, true);
     this.drawLightRowCol(249, 928, this.pdp.IO, 18, true);

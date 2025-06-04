@@ -20,6 +20,7 @@ export class PDPService {
   PC: number;
   AC: number;
   IO: number;
+  MA: number;
   MB: number;
   IR: number;
   selectedAddress: number;
@@ -79,11 +80,11 @@ export class PDPService {
           this.PC = this.customStartAddr;
           this.enableCustomStartAddr = false;
         }
+        this.MB = this.mem[this.PC];
+        this.IR = (this.MB >> 13) & mask.MASK_5;
         this.decode();
       }
     }
-    this.MB = this.mem[this.PC];
-    this.IR = (this.MB >> 13) & mask.MASK_5;
     this.consoleEmitter.emit();
     if (!this.halt) {
       requestAnimationFrame(() => this.emulationLoop());
@@ -96,11 +97,26 @@ export class PDPService {
   }
 
   reset(): void {
-    this.mem = Array<number>(MEM_SIZE).fill(0);
+    let pdp = this;
+    this.mem = new Proxy(Array<number>(MEM_SIZE).fill(0), {
+      get(target, prop, receiver) {
+        if (typeof prop === "string") {
+          pdp.MA = parseInt(prop);
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+      set(target, prop, receiver) {
+        if (typeof prop == "string") {
+          pdp.MA = parseInt(prop);
+        }
+        return Reflect.set(target, prop, receiver);
+      }
+    });
     this.PC = 0;
     this.AC = 0;
     this.IO = 0;
     this.MB = 0;
+    this.MA = 0;
     this.IR = 0;
     this.selectedAddress = 0;
     this.testWord = 0;
@@ -549,6 +565,7 @@ export class PDPService {
 
       default:
         console.log(`Instruction Not Implemented: ${word.toString(8)}`);
+        this.halt = true;
         this.incPC();
         break;
     }
@@ -753,19 +770,26 @@ export class PDPService {
   }
 
   shiftLeft(value: number, count: number): number {
-    return (value << count) & mask.MASK_18;
+    for (let _ = 0; _ < count; _++) {
+      const sign = helper.sign(value);
+      value = (sign << 17) | ((value << 1) & mask.MASK_17) | sign;
+    }
+    return value;
   }
 
   shiftACIOLeft(count: number): void {
     for (let _ = 0; _ < count; _++) {
+      const sign = helper.sign(this.AC);
       const IO7 = (this.IO >> 17) & mask.MASK_1;
-      this.setAC(((this.AC << 1) & mask.MASK_18) | IO7);
-      this.setIO((this.IO << 1) & mask.MASK_18);
+      this.setAC((sign << 17) | ((this.AC << 1) & mask.MASK_17) | IO7);
+      this.setIO(((this.IO << 1) & mask.MASK_18) | sign);
     }
   }
 
   index(Y: number, indirect: boolean): void {
-    this.setAC(this.read(Y, indirect) + 1);
+    let result = this.read(Y, indirect) + 1;
+    result += (result >> 18) & mask.MASK_1;
+    this.setAC(result);
     if (this.AC == NEG_ZERO) {
       this.setAC(0);
     }
